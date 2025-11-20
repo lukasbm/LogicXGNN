@@ -52,9 +52,9 @@ cd LogicXGNN-ICRL2026
 
 conda create -n logicgnn python=3.10
 conda activate logicgnn
-pip install torch torch-geometric scikit-learn matplotlib networkx
+pip install torch torch-geometric==3.6.1 scikit-learn matplotlib networkx==3.4.2
 ```
-
+Note: We have not tested with the most recent versions of each package. Please use the older versions than current ones if you encounter any issues. Additional you can contact us and we can help you to resolve the issues.
 ---
 
 ## 🛠 Usage

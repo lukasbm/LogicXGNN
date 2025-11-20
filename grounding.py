@@ -184,15 +184,15 @@ def plot_k_hop_subgraph(
                     label = f"{G.nodes[node]['atom_name']}"
                     target_ax.text(x, y - 0.02, label, fontsize=8, ha="center", color="blue")
 
-        if title_:
-            if title_position == "top":
-                target_ax.set_title(title_, fontsize=12)
-            elif title_position == "bottom":
-                target_ax.set_title("")
-                target_ax.text(0.5, -0.05, title_, fontsize=12,
-                               ha="center", transform=target_ax.transAxes)
-        else:
-            target_ax.set_title(f"{k}-hop subgraph around node {center_index}")
+        # if title_:
+        #     if title_position == "top":
+        #         target_ax.set_title(title_, fontsize=12)
+        #     elif title_position == "bottom":
+        #         target_ax.set_title("")
+        #         target_ax.text(0.5, -0.05, title_, fontsize=12,
+        #                        ha="center", transform=target_ax.transAxes)
+        # else:
+        #     target_ax.set_title(f"{k}-hop subgraph around node {center_index}")
         #fig= target_ax.get_figure()
         #fig.savefig(f"subgraph_{graph_idx}_center_{center_index}_k_{k}.png")
         target_ax.axis("off")
@@ -1044,7 +1044,7 @@ def visualize_graph_with_orbits(p_idx, all_refined_results, edge_list, eq_sets, 
     ax.set_title(f"Grounding rule explanation for p_{p_idx}", fontsize=14, fontweight='bold')
     ax.axis('off')
     os.makedirs(save_dir, exist_ok=True)
-    filename = os.path.join(save_dir, f"orbits_explanation_p{p_idx}.png")
+    filename = os.path.join(save_dir, f"grounding_rules_explanation_p_{p_idx}.png")
     fig.savefig(filename, bbox_inches="tight", dpi=150)
     plt.close(fig)
 
@@ -1097,8 +1097,8 @@ def process_feature_conditions(eq_sets, atom_type_dict, condition):
     # Parse the condition string
 
     parsed_conditions = parse_conditions(condition)
-    print(f"Parsed conditions: {parsed_conditions}")
-    print("Condition:", condition)
+    #print(f"Parsed conditions: {parsed_conditions}")
+    #print("Condition:", condition)
     results = []
     
     for feature_idx, operator, threshold in parsed_conditions:
@@ -1412,10 +1412,209 @@ def parse_ground_rules_pattern_refined(p_idx, ground_rules,  train_x_dict, train
         all_refined_results[pattern_counter] = refined_results
         pattern_counter += 1
 
-    # visualize_graph_with_orbits(p_idx, all_refined_results, edges, merged_orbits, show_node=0, save_dir=save_dir)
+    visualize_graph_with_orbits(p_idx, all_refined_results, edges, merged_orbits, show_node=0, save_dir=save_dir)
 
     return all_refined_results
 
+# def explain_predicate_with_rules(
+#     p_idx,
+#     used_iso_predicate_node,
+#     train_x_dict,
+#     train_edge_dict,
+#     atom_type_dict,
+#     idx_predicates_mapping,
+#     iso_predicates_inference,   # shared dict, updated in place
+#     one_hot,
+#     k_hops=2,
+#     depth=5,
+#     adds=0,
+#     verbose=1,
+#     top_k=5,
+#     save_dir="./plot",
+#     plot=True   # <--- switch for coverage plots
+# ):
+#     """
+#     Extract rules and explanations for a single predicate, 
+#     update iso_predicates_inference in place, and always return subgraph hash mapping.
+#     """
+#     # === Step 1: get rules ===
+#     clf, z_concat, z_label, ground_rules = get_the_rule_iso_z(
+#         p_idx, used_iso_predicate_node,
+#         train_x_dict, atom_type_dict, train_edge_dict,
+#         one_hot=one_hot, k_hops=k_hops, depth=None,
+#         adds=adds, verbose=verbose
+#     )
+#     if not ground_rules:
+#         if verbose:
+#             print(f"⚠️ No ground rules found for predicate {p_idx}, skipping.")
+#         return {}  # always return a dict
+
+#     hash_, res = idx_predicates_mapping[p_idx]
+#     iso_predicates_inference[hash_] = (clf, res, p_idx)   # update shared dict
+
+#     # === Step 2: refine rules ===
+#     parse_ground_rules_pattern_refined(
+#         p_idx, ground_rules,
+#         train_x_dict, train_edge_dict, atom_type_dict,
+#         one_hot=one_hot, k_hops=k_hops, stat=0, save_dir=save_dir
+#     )
+
+#     # === Step 3: collect subgraph hashes (always) ===
+#     hash_dict = {}
+#     subgraph_hashes = None
+#     for graph_idx, center_index in used_iso_predicate_node[p_idx][p_idx]:
+#         edges, nodes_attributes, center_index, wl_hash = plot_k_hop_subgraph(
+#             graph_idx, center_index,
+#             train_x_dict, train_edge_dict, atom_type_dict,
+#             title_=None, k=k_hops, plot=1, show_node_idx=0, nodes_attr=one_hot, grounding=False
+#         )
+#         if verbose:
+#             print(f"Graph {graph_idx}, center {center_index} → WL hash {wl_hash}")
+
+#         hash_dict.setdefault(wl_hash, []).append((graph_idx, center_index))
+#         hash_dict_sorted = dict(sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True))
+#         total_nodes = len(used_iso_predicate_node[p_idx][p_idx])
+#         k_ = min(top_k, len(hash_dict_sorted))
+#         top_k_keys = list(hash_dict_sorted.keys())[:k_]
+#     # === Step 4: coverage plots (only if enabled) ===
+#     if plot:
+
+
+#         fig, axes = plt.subplots(1, k_, figsize=(4 * k_, 4))
+#         if k_ == 1:
+#             axes = [axes]
+
+#         for ax, key in zip(axes, top_k_keys):
+#             node_list = hash_dict_sorted[key]
+#             if node_list:
+#                 # coverage_ratio = len(node_list) / total_nodes
+#                 # title_str = f"Coverage: {coverage_ratio:.2%}"
+#                 title_str = None
+#                 graph_idx, center_index = node_list[0]
+#                 plot_k_hop_subgraph(
+#                     graph_idx, center_index,
+#                     train_x_dict, train_edge_dict, atom_type_dict,
+#                     k=2, show_node_idx=0,
+#                     title_=title_str, ax=ax, title_position='bottom',
+#                     nodes_attr=one_hot
+#                 )
+
+#         fig.suptitle(f"Top {k_} explanation graphs for p_{p_idx}", fontsize=14, y=1.01)
+#         plt.tight_layout()
+
+#         os.makedirs(save_dir, exist_ok=True)
+#         filename = os.path.join(save_dir, f"subgraph_explanation_p_{p_idx}.png")
+#         fig.savefig(filename, bbox_inches="tight", dpi=150)
+#         plt.close(fig)
+
+#         if verbose:
+#             print(f"✅ Saved predicate plot for p_{p_idx} at {filename}")
+
+#     # ✅ Always return one subgraph hashes
+#     return top_k_keys[0]
+def complete_subgraph_explanations(p_idx, train_x_dict, train_edge_dict, atom_type_dict, top_k_subgraph=5, k_hops=2, stats=1, used_iso_predicate_node=None, save_dir=None):
+
+    def plot_k_hop_subgraph(graph_idx, center_index, train_x_dict, train_edge_dict, atom_type_dict, title_ = None, k=k_hops, plot=1, show_node_idx=1, ax=None, title_position='top'):
+        # Extract k-hop subgraph
+        edge_tensor = train_edge_dict[graph_idx]
+        x_tensor = train_x_dict[graph_idx]
+
+            
+        # Extract k-hop subgraph
+        subset, sub_edge_index, mapping, _ = k_hop_subgraph(
+            center_index, k, edge_tensor, relabel_nodes=True
+        )
+
+        # Create PyG Data object for subgraph
+        sub_x = x_tensor[subset]
+        sub_data = Data(x=sub_x, edge_index=sub_edge_index)
+
+        # Convert to NetworkX graph
+        G = to_networkx(sub_data, to_undirected=True)
+
+        nodes_attributes = {}
+        for node in G.nodes:
+            original_node_idx = subset[node].item()
+            one_hot_vec = sub_x[node]
+            atom_type_idx = torch.argmax(one_hot_vec).item()
+            atom_name = atom_type_dict.get(atom_type_idx, "UNK")
+            G.nodes[node]['original_idx'] = original_node_idx
+            G.nodes[node]['atom_name'] = atom_name
+            nodes_attributes[original_node_idx] = [atom_name, one_hot_vec.tolist()]
+
+        edges = [(subset[u].item(), subset[v].item()) for u, v in sub_edge_index.t().tolist()]
+        wl_hash = nx.weisfeiler_lehman_graph_hash(G, node_attr='atom_name')
+
+        if plot:
+            pos = nx.spring_layout(G, seed=42)
+            target_ax = ax if ax is not None else plt.gca()
+            target_ax.clear()
+
+            nx.draw_networkx_nodes(G, pos, node_color='lightblue', node_size=500, ax=target_ax)
+            nx.draw_networkx_edges(G, pos, edge_color='gray', ax=target_ax)
+
+            for node, (x, y) in pos.items():
+                if show_node_idx:
+                    label = f"{G.nodes[node]['original_idx']}\n{G.nodes[node]['atom_name']}"
+                    target_ax.text(x, y - 0.05, label, fontsize=8, ha='center', color='blue')
+                else:
+                    label = f"{G.nodes[node]['atom_name']}"
+                    target_ax.text(x, y - 0.02, label, fontsize=8, ha='center', color='blue')
+
+            if title_:
+                if title_position == 'top':
+                    target_ax.set_title(title_, fontsize=12)
+                elif title_position == 'bottom':
+                    target_ax.set_title("")  # No top title
+                    target_ax.text(0.5, -0.05, title_, fontsize=12, ha='center', transform=target_ax.transAxes)
+            else:
+                target_ax.set_title(f"{k}-hop subgraph around node {center_index}")
+
+            target_ax.axis('off')
+
+        return edges, nodes_attributes, center_index, wl_hash
+
+
+    # === Main logic ===
+    hash_dict = {}
+    for graph_idx, center_index in used_iso_predicate_node[p_idx][p_idx]:
+        edges, nodes_attributes, center_index, wl_hash = plot_k_hop_subgraph(graph_idx, center_index, train_x_dict, train_edge_dict, atom_type_dict, title_ = None, k=k_hops, plot=0, show_node_idx = 0)
+        hash_dict.setdefault(wl_hash, []).append((graph_idx, center_index))
+
+    hash_dict_sorted = dict(sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True))
+
+    if stats == 1:
+        for key, val in hash_dict_sorted.items():
+            print(f"{key}: {len(val)} nodes -> {val}")
+
+    total_nodes = len(used_iso_predicate_node[p_idx][p_idx])
+    top_k_subgraph = min(top_k_subgraph, len(hash_dict_sorted))
+    top_k_keys = list(hash_dict_sorted.keys())[:top_k_subgraph]
+
+    fig, axes = plt.subplots(1, top_k_subgraph, figsize=(4 * top_k_subgraph, 4))
+    if top_k_subgraph == 1:
+        axes = [axes]
+
+    for ax, key in zip(axes, top_k_keys):
+        node_list = hash_dict_sorted[key]
+        if node_list:
+            coverage_ratio = len(node_list) / total_nodes
+            title_str = f"Coverage: {coverage_ratio:.2%}"
+            graph_idx, center_index, = node_list[0]
+            plot_k_hop_subgraph(
+                graph_idx, center_index, train_x_dict, train_edge_dict, atom_type_dict,
+                k=2,
+                show_node_idx=0,
+                title_=title_str,
+                ax=ax,
+                title_position='bottom'  # ✅ now title under plot
+            )
+
+    # ✅ Grand title for all subplots
+    fig.suptitle(f"Top {top_k_subgraph} subgraph(s) explanation for p_{p_idx}", fontsize=14, y=1.01)
+
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/complete_subgraph_explanations_p_{p_idx}.png", bbox_inches="tight", dpi=150)
 def explain_predicate_with_rules(
     p_idx,
     used_iso_predicate_node,
@@ -1429,14 +1628,15 @@ def explain_predicate_with_rules(
     depth=5,
     adds=0,
     verbose=1,
-    top_k=5,
+    top_k_subgraph=5,
     save_dir="./plot",
-    plot=True   # <--- switch for coverage plots
+    plot=True
 ):
     """
     Extract rules and explanations for a single predicate, 
     update iso_predicates_inference in place, and always return subgraph hash mapping.
     """
+
     # === Step 1: get rules ===
     clf, z_concat, z_label, ground_rules = get_the_rule_iso_z(
         p_idx, used_iso_predicate_node,
@@ -1447,10 +1647,10 @@ def explain_predicate_with_rules(
     if not ground_rules:
         if verbose:
             print(f"⚠️ No ground rules found for predicate {p_idx}, skipping.")
-        return {}  # always return a dict
+        return {}
 
     hash_, res = idx_predicates_mapping[p_idx]
-    iso_predicates_inference[hash_] = (clf, res, p_idx)   # update shared dict
+    iso_predicates_inference[hash_] = (clf, res, p_idx)
 
     # === Step 2: refine rules ===
     parse_ground_rules_pattern_refined(
@@ -1459,139 +1659,149 @@ def explain_predicate_with_rules(
         one_hot=one_hot, k_hops=k_hops, stat=0, save_dir=save_dir
     )
 
-    # === Step 3: collect subgraph hashes (always) ===
-    hash_dict = {}
-    subgraph_hashes = None
-    for graph_idx, center_index in used_iso_predicate_node[p_idx][p_idx]:
-        edges, nodes_attributes, center_index, wl_hash = plot_k_hop_subgraph(
-            graph_idx, center_index,
-            train_x_dict, train_edge_dict, atom_type_dict,
-            title_=None, k=k_hops, plot=1, show_node_idx=0, nodes_attr=one_hot, grounding=False
-        )
-        if verbose:
-            print(f"Graph {graph_idx}, center {center_index} → WL hash {wl_hash}")
+    # # === Step 3 FIXED: collect subgraph hashes once all data is accumulated ===
+    # hash_dict = {}
 
-        hash_dict.setdefault(wl_hash, []).append((graph_idx, center_index))
-        hash_dict_sorted = dict(sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True))
-        total_nodes = len(used_iso_predicate_node[p_idx][p_idx])
-        k_ = min(top_k, len(hash_dict_sorted))
-        top_k_keys = list(hash_dict_sorted.keys())[:k_]
+    # for graph_idx, center_index in used_iso_predicate_node[p_idx][p_idx]:
+    #     edges, nodes_attributes, center_index, wl_hash = plot_k_hop_subgraph(
+    #         graph_idx, center_index,
+    #         train_x_dict, train_edge_dict, atom_type_dict,
+    #         title_=None, k=k_hops, plot=1, show_node_idx=0,
+    #         nodes_attr=one_hot, grounding=False
+    #     )
 
-    # === Step 4: coverage plots (only if enabled) ===
+    #     if verbose:
+    #         print(f"Graph {graph_idx}, center {center_index} → WL hash {wl_hash}")
+
+    #     hash_dict.setdefault(wl_hash, []).append((graph_idx, center_index))
+
+    # # --- compute sorted hash groups ONCE ---
+    # hash_dict_sorted = dict(sorted(hash_dict.items(), key=lambda x: len(x[1]), reverse=True))
+    # pri
+    # # number of distinct WL-hash patterns
+    # num_patterns = len(hash_dict_sorted)
+
+    # # take top-k OR all patterns if fewer than k
+    # k_ = min(top_k, num_patterns)
+
+    # # actual WL-hash keys to visualize
+    # top_k_keys = list(hash_dict_sorted.keys())[:k_]
+
+
+
+    # # === Step 4 FIXED: coverage plots ===
+    # if plot:
+
+    #     fig, axes = plt.subplots(1, k_, figsize=(4 * k_, 4))
+    #     if k_ == 1:
+    #         axes = [axes]
+
+    #     for ax, key in zip(axes, top_k_keys):
+    #         node_list = hash_dict_sorted[key]
+    #         if node_list:
+    #             graph_idx, center_index = node_list[0]
+    #             plot_k_hop_subgraph(
+    #                 graph_idx, center_index,
+    #                 train_x_dict, train_edge_dict, atom_type_dict,
+    #                 k=2, show_node_idx=0,
+    #                 title_=None, ax=ax, title_position='bottom',
+    #                 nodes_attr=one_hot
+    #             )
+
+    #     fig.suptitle(f"Top {k_} explanation graphs for p_{p_idx}", fontsize=14, y=1.01)
+    #     plt.tight_layout()
+
+    #     os.makedirs(save_dir, exist_ok=True)
+    #     filename = os.path.join(save_dir, f"subgraph_explanation_p_{p_idx}.png")
+    #     fig.savefig(filename, bbox_inches="tight", dpi=150)
+    #     plt.close(fig)
+
+    #     if verbose:
+    #         print(f"✅ Saved predicate plot for p_{p_idx} at {filename}")
+
+    # # always return one representative WL-hash
     if plot:
+        complete_subgraph_explanations(p_idx, train_x_dict, train_edge_dict, atom_type_dict, top_k_subgraph=top_k_subgraph, k_hops = k_hops, stats=0,used_iso_predicate_node=used_iso_predicate_node,save_dir=save_dir)
+    return None
+
+# def plot_alone_predicate_explanation(p, graph_idx, center_index,
+#                                      x_dict, edge_dict,
+#                                      dataset, seed, arch, k=2):
+#     """
+#     Save the k-hop subgraph around a center node for a given predicate
+#     into ./plot/<dataset>/<seed>/
+
+#     Args:
+#         p (int/str): Predicate ID
+#         graph_idx (int): Graph index in dataset
+#         center_index (int): Center node index
+#         x_dict (dict): Node features per graph
+#         edge_dict (dict): Edge index per graph
+#         dataset (str): Dataset name
+#         seed (int): Random seed
+#         k (int): Number of hops
+#     """
+#     # Directory: ./plot/dataset/seed/
+#     save_dir = os.path.join("plot", dataset, str(seed), arch, "alone")
+#     os.makedirs(save_dir, exist_ok=True)
+
+#     edge_tensor = edge_dict[graph_idx]
+#     x_tensor = x_dict[graph_idx]
+
+#     # Extract k-hop subgraph
+#     subset, sub_edge_index, mapping, _ = k_hop_subgraph(
+#         center_index, k, edge_tensor, relabel_nodes=True
+#     )
+
+#     # Subgraph Data
+#     sub_x = x_tensor[subset]
+#     sub_data = Data(x=sub_x, edge_index=sub_edge_index)
+
+#     # Convert to NetworkX for plotting
+#     G = to_networkx(sub_data, to_undirected=True)
+#     pos = nx.spring_layout(G, seed=42)
+
+#     # Draw
+#     plt.figure(figsize=(8, 6))
+#     nx.draw_networkx_nodes(G, pos, node_color='lightblue', node_size=500)
+#     nx.draw_networkx_edges(G, pos, edge_color='gray')
+#     plt.title(f"Explanation graph for predicate p_{p}", fontsize=14, y=1.01)
+#     plt.axis("off")
+
+#     # Save to file
+#     filename = os.path.join(
+#         save_dir, f"Explanation graph for predicate p_{p}.png"
+#     )
+#     plt.savefig(filename, bbox_inches="tight", dpi=150)
+#     plt.close()
+
+#     return filename
 
 
-        fig, axes = plt.subplots(1, k_, figsize=(4 * k_, 4))
-        if k_ == 1:
-            axes = [axes]
+# def save_all_alone_predicates(used_alone_predicates, x_dict, edge_dict,
+#                               dataset, seed, arch, k=2):
+#     """
+#     Save explanation plots for all used-alone predicates into ./plot/<dataset>/<seed>/
 
-        for ax, key in zip(axes, top_k_keys):
-            node_list = hash_dict_sorted[key]
-            if node_list:
-                # coverage_ratio = len(node_list) / total_nodes
-                # title_str = f"Coverage: {coverage_ratio:.2%}"
-                title_str = None
-                graph_idx, center_index = node_list[0]
-                plot_k_hop_subgraph(
-                    graph_idx, center_index,
-                    train_x_dict, train_edge_dict, atom_type_dict,
-                    k=2, show_node_idx=0,
-                    title_=title_str, ax=ax, title_position='bottom',
-                    nodes_attr=one_hot
-                )
-
-        fig.suptitle(f"Top {k_} explanation graphs for p_{p_idx}", fontsize=14, y=1.01)
-        plt.tight_layout()
-
-        os.makedirs(save_dir, exist_ok=True)
-        filename = os.path.join(save_dir, f"coverage_p{p_idx}.png")
-        fig.savefig(filename, bbox_inches="tight", dpi=150)
-        plt.close(fig)
-
-        if verbose:
-            print(f"✅ Saved coverage plot for p_{p_idx} at {filename}")
-
-    # ✅ Always return one subgraph hashes
-    return top_k_keys[0]
-
-def plot_alone_predicate_explanation(p, graph_idx, center_index,
-                                     x_dict, edge_dict,
-                                     dataset, seed, arch, k=2):
-    """
-    Save the k-hop subgraph around a center node for a given predicate
-    into ./plot/<dataset>/<seed>/
-
-    Args:
-        p (int/str): Predicate ID
-        graph_idx (int): Graph index in dataset
-        center_index (int): Center node index
-        x_dict (dict): Node features per graph
-        edge_dict (dict): Edge index per graph
-        dataset (str): Dataset name
-        seed (int): Random seed
-        k (int): Number of hops
-    """
-    # Directory: ./plot/dataset/seed/
-    save_dir = os.path.join("plot", dataset, str(seed), arch, "alone")
-    os.makedirs(save_dir, exist_ok=True)
-
-    edge_tensor = edge_dict[graph_idx]
-    x_tensor = x_dict[graph_idx]
-
-    # Extract k-hop subgraph
-    subset, sub_edge_index, mapping, _ = k_hop_subgraph(
-        center_index, k, edge_tensor, relabel_nodes=True
-    )
-
-    # Subgraph Data
-    sub_x = x_tensor[subset]
-    sub_data = Data(x=sub_x, edge_index=sub_edge_index)
-
-    # Convert to NetworkX for plotting
-    G = to_networkx(sub_data, to_undirected=True)
-    pos = nx.spring_layout(G, seed=42)
-
-    # Draw
-    plt.figure(figsize=(8, 6))
-    nx.draw_networkx_nodes(G, pos, node_color='lightblue', node_size=500)
-    nx.draw_networkx_edges(G, pos, edge_color='gray')
-    plt.title(f"Explanation graph for predicate p_{p}", fontsize=14, y=1.01)
-    plt.axis("off")
-
-    # Save to file
-    filename = os.path.join(
-        save_dir, f"predicate_{p}_graph{graph_idx}_center{center_index}.png"
-    )
-    plt.savefig(filename, bbox_inches="tight", dpi=150)
-    plt.close()
-
-    return filename
+#     Args:
+#         used_alone_predicates (dict): {wl_hash: (predicate, [(graph_idx, center_index), ...])}
+#         x_dict (dict): Node features
+#         edge_dict (dict): Edge indices
+#         dataset (str): dataset name
+#         seed (int): seed value
+#         k (int): k-hop size
+#     """
+#     saved_files = []
+#     for wl, v in used_alone_predicates.items():
+#         p, node_list = v
+#         graph_idx, center_index = node_list[0]
 
 
-def save_all_alone_predicates(used_alone_predicates, x_dict, edge_dict,
-                              dataset, seed, arch, k=2):
-    """
-    Save explanation plots for all used-alone predicates into ./plot/<dataset>/<seed>/
-
-    Args:
-        used_alone_predicates (dict): {wl_hash: (predicate, [(graph_idx, center_index), ...])}
-        x_dict (dict): Node features
-        edge_dict (dict): Edge indices
-        dataset (str): dataset name
-        seed (int): seed value
-        k (int): k-hop size
-    """
-    saved_files = []
-    for wl, v in used_alone_predicates.items():
-        p, node_list = v
-        graph_idx, center_index = node_list[0]
-
-        # print(f"Saving {dataset}_{seed} → predicate {p} (graph {graph_idx}, center {center_index})")
-        fname = plot_alone_predicate_explanation(
-            p, graph_idx, center_index,
-            x_dict, edge_dict,
-            dataset, seed, arch, k=k
-        )
+#         fname = plot_alone_predicate_explanation(
+#             p, graph_idx, center_index,
+#             x_dict, edge_dict,
+#             dataset, seed, arch, k=k
+#         )
         
 
 def plot_alone_predicate_explanation(p, graph_idx, center_index, train_x_dict, train_edge_dict, k, ax=None):

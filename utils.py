@@ -36,7 +36,7 @@ def test(model, loader, device):
 
 
 def load_model(model, model_path, device="cpu"):
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device,weights_only=True)
     model.load_state_dict(checkpoint)
     print(f"✅ Loaded model from {model_path}")
     return model

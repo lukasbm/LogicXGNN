@@ -181,7 +181,8 @@ def main():
     start_time = time.time()
     gnn_train_pred_tensor, train_y_tensor, train_x_dict, train_edge_dict, train_activations_dict, train_gnn_graph_embed = get_all_activations_graph(train_loader,model,device)
     gnn_test_pred_tensor, test_y_tensor, test_x_dict, test_edge_dict, test_activations_dict, test_gnn_graph_embed = get_all_activations_graph(test_loader,model,device)
-    save_dir="."
+    save_dir_root=f"./plot/{args.dataset}/{args.seed}/{args.arch}"
+    print(f"If the plot flag is set, explanation results will be saved to {save_dir_root}")
 #     torch.save({
 #     "pred_tensor": gnn_train_pred_tensor.cpu(),
 #     "y_tensor": train_y_tensor.cpu(),
@@ -239,7 +240,12 @@ def main():
     index_test = torch.tensor(list(range(test_y_tensor.shape[0])))
     test_predicate_graph, test_res = get_predicate_graph(index_test, predicates, predicate_to_idx, test_x_dict, test_edge_dict, test_activations_dict, val_idx, threshold, use_embed = use_embed , k_hops = k_hops)
     leaf_rules_samples_0, leaf_rules_samples_1, used_predicates, clf_graph = get_discriminative_rules_with_samples(rules_matrix_0, rules_matrix_1, index_0_correct, index_1_correct, max_depth = args.max_depth, plot=0, text=0)
-
+    print("Discriminative rules learned from decision tree:")
+    print("Class 0 rules:")
+    print(leaf_rules_samples_0.keys())
+    print("Class 1 rules:")
+    print(leaf_rules_samples_1.keys())
+    
     y_true_fid = gnn_test_pred_tensor.cpu().numpy()
     y_pred_fid = clf_graph.predict(test_res.T)
 
@@ -286,26 +292,28 @@ def main():
     print("-------------------------Grounding and Evaluating-------------------------")
     used_alone_predicates, used_iso_predicate_node = analyze_used_predicate_nodes(predicate_node, predicate_to_idx, used_predicates)
     if args.plot:
+        print("Plotting explanations for alone predicates...")
         for wl, v in used_alone_predicates.items():
             p, node_list = v
-            
-            print(f"Processing predicate: {p}")  # Fixed: was printing undefined 'p'
-            
             graph_idx, center_index = node_list[0]
             
             # Create a new figure for each predicate
             plt.figure(figsize=(8, 6))
             plot_alone_predicate_explanation(p, graph_idx, center_index, train_x_dict, train_edge_dict, k=k_hops)
             plt.tight_layout()
-            os.makedirs(f"./plot/{args.dataset}/{args.seed}/{args.arch}/alone", exist_ok=True)
-            plt.savefig(f"./plot/{args.dataset}/{args.seed}/{args.arch}/alone/predicate_{p}.png")
+            os.makedirs(f"{save_dir_root}/alone", exist_ok=True)
+            plt.savefig(f"{save_dir_root}/alone/subgraph_explanation_p_{p}.png")
             plt.close()
+        print(f"Finished plotting explanations for alone predicates. Saved at {save_dir_root}/alone")
     iso_predicates_inference = {} 
 
     used_iso_predicates = list(used_iso_predicate_node.keys())
     hashs=[]
-    print("Used iso predicates:", used_iso_predicates)
-    if atom_type_dict!={}:
+    
+    if use_embed!=0:
+        print("Used iso predicates:", used_iso_predicates)
+        if args.plot:
+            print("Plotting explanations for iso predicates...")
         for p in used_iso_predicates:
                 h=explain_predicate_with_rules(
             p_idx=p,
@@ -317,12 +325,14 @@ def main():
             iso_predicates_inference=iso_predicates_inference,
             one_hot=one_hot,
             k_hops=k_hops,
-            top_k=1,
-            save_dir=f"./plot/{args.dataset}/{args.seed}/{args.arch}/iso",
+            top_k_subgraph=5,
+            save_dir=f"{save_dir_root}/iso",
             verbose=0,
             plot=args.plot
         )
                 hashs.append(h)
+        if args.plot:
+            print(f"Finished plotting explanations for iso predicates. Saved at {save_dir_root}/iso")
                 
     #print(hashs)
     #print("Final iso_predicates_inference:", iso_predicates_inference)
