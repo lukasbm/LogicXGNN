@@ -11,19 +11,22 @@ from sklearn.tree import _tree
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.utils.class_weight import compute_sample_weight
-def process_graph_predicates(graph_idx, train_x_dict, train_edge_dict, train_activations_dict, val_idx, threshold, use_embed = 1, k_hops=2):
+
+
+def process_graph_predicates(graph_idx, train_x_dict, train_edge_dict, train_activations_dict, val_idx, threshold,
+                             use_embed=1, k_hops=2):
     node_act = (train_activations_dict['conv2'][graph_idx][:, val_idx] > threshold).int().numpy()
     edges = train_edge_dict[graph_idx]
     unique_nodes = torch.unique(edges)
-    
+
     # Use defaultdict for faster insertion
     predicate_node_dict_graph = defaultdict(list)
-    
+
     for node in unique_nodes:
         node_int = node.item()
         # Convert single node to tensor
         node_tensor = torch.tensor([node_int], dtype=torch.long)
-        
+
         # Extract k-hop subgraph
         node_idx, edge_index_subgraph, mapping, edge_mask = k_hop_subgraph(
             node_idx=node_tensor,
@@ -31,26 +34,28 @@ def process_graph_predicates(graph_idx, train_x_dict, train_edge_dict, train_act
             edge_index=edges,
             relabel_nodes=True
         )
-        
+
         # Convert subgraph to NetworkX graph for WL hash
         subgraph_data = Data(edge_index=edge_index_subgraph, num_nodes=len(node_idx))
         nx_subgraph = to_networkx(subgraph_data, to_undirected=True)
-        
+
         # Compute Weisfeiler-Lehman hash
         wl_hash = nx.weisfeiler_lehman_graph_hash(nx_subgraph)
-        
+
         # Directly add to predicate_node_dict_graph (skip intermediate dict)
         if use_embed:
             predicate = (wl_hash, node_act[node_int])
         else:
-            predicate = (wl_hash, 1) # only use graph pattern
+            predicate = (wl_hash, 1)  # only use graph pattern
 
         predicate_node_dict_graph[predicate].append((graph_idx, node_int))
-    
+
     # Convert defaultdict back to regular dict
     return dict(predicate_node_dict_graph)
-def get_predicates_bin_one_pass(index_0_correct,index_1_correct,train_x_dict, train_edge_dict, train_activations_dict, val_idx, threshold, use_embed = 0 , k_hops = 2):
 
+
+def get_predicates_bin_one_pass(index_0_correct, index_1_correct, train_x_dict, train_edge_dict, train_activations_dict,
+                                val_idx, threshold, use_embed=0, k_hops=2):
     predicate_graph_class_0 = {}  # key is graph_idx, value is set of predicates for that graph
     predicate_node_class_0 = defaultdict(list)  # key is predicate, value is list of (graph_idx, node) pairs
 
@@ -60,11 +65,13 @@ def get_predicates_bin_one_pass(index_0_correct,index_1_correct,train_x_dict, tr
     # Process class 0 graphs
     for graph_idx in index_0_correct:
         graph_idx = int(graph_idx)
-        predicate_node_dict_graph = process_graph_predicates(graph_idx, train_x_dict, train_edge_dict, train_activations_dict, val_idx, threshold, use_embed = use_embed , k_hops = k_hops)
-        
+        predicate_node_dict_graph = process_graph_predicates(graph_idx, train_x_dict, train_edge_dict,
+                                                             train_activations_dict, val_idx, threshold,
+                                                             use_embed=use_embed, k_hops=k_hops)
+
         # Store predicates for this graph
         predicate_graph_class_0[graph_idx] = set(predicate_node_dict_graph.keys())
-        
+
         # Merge predicate_node_dict_graph into predicate_node_class_0
         for predicate, node_list in predicate_node_dict_graph.items():
             predicate_node_class_0[predicate].extend(node_list)
@@ -72,11 +79,13 @@ def get_predicates_bin_one_pass(index_0_correct,index_1_correct,train_x_dict, tr
     # Process class 1 graphs
     for graph_idx in index_1_correct:
         graph_idx = int(graph_idx)
-        predicate_node_dict_graph = process_graph_predicates(graph_idx, train_x_dict, train_edge_dict, train_activations_dict, val_idx, threshold, use_embed = use_embed , k_hops = k_hops)
-        
+        predicate_node_dict_graph = process_graph_predicates(graph_idx, train_x_dict, train_edge_dict,
+                                                             train_activations_dict, val_idx, threshold,
+                                                             use_embed=use_embed, k_hops=k_hops)
+
         # Store predicates for this graph
         predicate_graph_class_1[graph_idx] = set(predicate_node_dict_graph.keys())
-        
+
         # Merge predicate_node_dict_graph into predicate_node_class_1
         for predicate, node_list in predicate_node_dict_graph.items():
             predicate_node_class_1[predicate].extend(node_list)
@@ -124,19 +133,22 @@ def get_predicates_bin_one_pass(index_0_correct,index_1_correct,train_x_dict, tr
                 row_idx = predicate_to_idx[predicate]
                 rules_matrix_1[row_idx, col_idx] = 1
 
+    return predicates, predicate_to_idx, predicate_node, predicate_graph_class_0, predicate_graph_class_1, rules_matrix_0, rules_matrix_1
 
-    return  predicates, predicate_to_idx, predicate_node, predicate_graph_class_0, predicate_graph_class_1, rules_matrix_0, rules_matrix_1
-def get_predicate_graph(index_graph, predicates, predicate_to_idx, x_dict, edge_dict, activations_dict, val_idx, threshold, use_embed = 0 , k_hops = 1): #found it !!!!!!!
+
+def get_predicate_graph(index_graph, predicates, predicate_to_idx, x_dict, edge_dict, activations_dict, val_idx,
+                        threshold, use_embed=0, k_hops=1):  # found it !!!!!!!
     predicate_graph = {}
-        # Process class 0 graphs
+    # Process class 0 graphs
     for graph_idx in index_graph:
         graph_idx = int(graph_idx)
-        predicate_node_dict_graph = process_graph_predicates(graph_idx, x_dict, edge_dict, activations_dict, val_idx, threshold, use_embed = use_embed , k_hops = k_hops)
-        
+        predicate_node_dict_graph = process_graph_predicates(graph_idx, x_dict, edge_dict, activations_dict, val_idx,
+                                                             threshold, use_embed=use_embed, k_hops=k_hops)
+
         # Store predicates for this graph
         predicate_graph[graph_idx] = set(predicate_node_dict_graph.keys())
 
-    rule_matrix = np.zeros((len(predicates), len(index_graph)))     
+    rule_matrix = np.zeros((len(predicates), len(index_graph)))
 
     graph_to_col = {int(graph_idx): col_idx for col_idx, graph_idx in enumerate(index_graph)}
 
@@ -146,11 +158,13 @@ def get_predicate_graph(index_graph, predicates, predicate_to_idx, x_dict, edge_
         for predicate in predicate_set:
             if predicate in predicate_to_idx:  # Check if predicate exists in merged set
                 row_idx = predicate_to_idx[predicate]
-                rule_matrix[row_idx, col_idx] = 1   
-
+                rule_matrix[row_idx, col_idx] = 1
 
     return predicate_graph, rule_matrix
-def get_discriminative_rules_with_samples(rules_matrix_0, rules_matrix_1, index_0_correct, index_1_correct, max_depth=3, plot=0, text=0):
+
+
+def get_discriminative_rules_with_samples(rules_matrix_0, rules_matrix_1, index_0_correct, index_1_correct, max_depth=3,
+                                          plot=0, text=0):
     print("Used max depth:", max_depth)
 
     # Step 1: Combine matrices
@@ -166,19 +180,18 @@ def get_discriminative_rules_with_samples(rules_matrix_0, rules_matrix_1, index_
     clf.fit(X.T, y)
 
     # sample_weights = compute_sample_weight(class_weight=class_weights_map, y=y)
-    #weights = torch.tensor(sample_weights, dtype=torch.float32) 
+    # weights = torch.tensor(sample_weights, dtype=torch.float32)
     # Step 4: Predictions and accuracy
     y_pred = clf.predict(X.T)
     acc = accuracy_score(y, y_pred)
-    #weighted_acc = accuracy_score(y, y_pred, sample_weight=weights)
+    # weighted_acc = accuracy_score(y, y_pred, sample_weight=weights)
     print(f"Decision Tree Accuracy: {acc:.4f}")
-    #print(f"Decision Tree Weighted Accuracy: {weighted_acc:.4f}")
+    # print(f"Decision Tree Weighted Accuracy: {weighted_acc:.4f}")
 
     # Get used predicates
     used_feature_indices = set(clf.tree_.feature[clf.tree_.feature != _tree.TREE_UNDEFINED])
     predicate_names = [f'p_{i}' for i in range(X.shape[0])]
     used_predicates = [predicate_names[i] for i in sorted(used_feature_indices)]
-
 
     used_predicates_ = [int(p.split('_')[1]) for p in used_predicates]
 
@@ -232,4 +245,4 @@ def get_discriminative_rules_with_samples(rules_matrix_0, rules_matrix_1, index_
         plt.title("Decision Tree Classifier")
         plt.show()
 
-    return leaf_rules_samples_0, leaf_rules_samples_1, used_predicates_, clf 
+    return leaf_rules_samples_0, leaf_rules_samples_1, used_predicates_, clf

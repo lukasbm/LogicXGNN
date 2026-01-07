@@ -12,6 +12,7 @@ from torch_geometric.datasets import BAMultiShapesDataset
 # ---------------------------
 class DegreeFeatures(BaseTransform):
     """Transform that uses node degree as integer features"""
+
     def __call__(self, data):
         row, col = data.edge_index
         deg = degree(col, num_nodes=data.num_nodes, dtype=torch.long)
@@ -30,8 +31,10 @@ atom_types = sorted(original_atom_dict.keys())
 atom_to_idx = {atom_num: idx for idx, atom_num in enumerate(atom_types)}
 num_atom_types = len(atom_types)
 atom_type_dict = {idx: original_atom_dict[atom_types[idx]] for idx in range(num_atom_types)}
-#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu')
+
+
 def convert_atoms_to_onehot(x, atom_to_idx, num_atom_types):
     """Convert atomic numbers to one-hot encodings - ONLY use first column (atomic numbers)"""
     atomic_numbers = x[:, 0].long()
@@ -52,11 +55,11 @@ def load_data(name, seed=42):
     print("Seed:", seed)
     if name == "IMDB-BINARY":
         dataset = TUDataset(root='./data', name='IMDB-BINARY', transform=DegreeFeatures())
-    elif name=="reddit_threads":
+    elif name == "reddit_threads":
         dataset = TUDataset(root='./data', name='reddit_threads', transform=DegreeFeatures())
-    elif name=="twitch_egos":
+    elif name == "twitch_egos":
         dataset = TUDataset(root='./data', name='twitch_egos', transform=DegreeFeatures())
-    elif name=="github_stargazers":
+    elif name == "github_stargazers":
         dataset = TUDataset(root='./data', name='github_stargazers', transform=DegreeFeatures())
     elif name == "BBBP":
         dataset = MoleculeNet(root='./data', name='BBBP')
@@ -66,6 +69,31 @@ def load_data(name, seed=42):
         dataset = TUDataset(root='./data', name='NCI1')
     elif name == "BAMultiShapes":
         dataset = BAMultiShapesDataset(root='./data')
+    elif name == "SingleP4":
+        from graph_learning.datasets.synthetic import create_non_cograph_single_p4_dataset, create_cograph_dataset, \
+            merge_datasets
+        from graph_learning.utils import build_transform
+
+        min_nodes = 12
+        max_nodes = 36
+        num_graphs = 200
+
+        transform = build_transform(laplace_pe_k=0, graph_features=None, use_virtual_node=False)
+        positive_dataset = create_cograph_dataset(
+            num_graphs=num_graphs,
+            min_nodes=min_nodes,
+            max_nodes=max_nodes,
+            pre_transform=transform,
+            force_reload=False
+        )
+        negative_dataset = create_non_cograph_single_p4_dataset(
+            num_graphs=num_graphs,
+            min_nodes=min_nodes,
+            max_nodes=max_nodes,
+            pre_transform=transform,
+            force_reload=False
+        )
+        dataset = merge_datasets(positive_dataset, negative_dataset).shuffle()
     else:
         raise ValueError(f"Unknown dataset: {name}")
 

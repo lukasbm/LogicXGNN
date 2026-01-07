@@ -4,23 +4,44 @@ This is the official repository of **LogicXGNN**.
 
 ---
 
+### Note by me
+
+I extended this repo, especially the `main,py` to allow for cograph dataset stuff.
+
+This works first by adding the graph learning module to the pythonpath.
+You have to set the following env variable:
+
+```bash
+export PYTHONPATH="/absolute/path/graph-learning-experiments/:${PYTHONPATH}"
+```
+
+During development, you might also want to try the
+following: https://www.jetbrains.com/help/pycharm/installing-uninstalling-and-reloading-interpreter-paths.html#view
+
+Then you can run `python main.py --dataset SingleP4 --arch GIN --seed 1`.
+SingleP4 is my dataset I added!
+At the end you will find the relevant pattern in the plot directory, and there's a checkpoint.
+The whole process should take around 20 minutes with a dataset size of 500 on rosewater.
+
+---
+
 ## 📌 Features
 
 - Multiple GNN backbones:
-  - **GCN**, **GIN**, **GAT**, **GraphSAGE**, and etc.
+    - **GCN**, **GIN**, **GAT**, **GraphSAGE**, and etc.
 - Wide range of datasets:
-  - **Molecule datasets**: BBBP, Mutagenicity, NCI1  
-  - **Synthetic**: BAMultiShapes  
-  - **Social**: IMDB-BINARY, Reddit, Twitch, GitHub stargazers
+    - **Molecule datasets**: BBBP, Mutagenicity, NCI1
+    - **Synthetic**: BAMultiShapes
+    - **Social**: IMDB-BINARY, Reddit, Twitch, GitHub stargazers
 - Explanation modules:
-  - Derive **predicates** from GNN embeddings and the underlying message-passing topology.
-  - Extract **logical rules** over these predicates to approximate and interpret GNN decisions.
-  - Efficiently **ground predicates** into representative subgraphs, supported by general grounding rules.
+    - Derive **predicates** from GNN embeddings and the underlying message-passing topology.
+    - Extract **logical rules** over these predicates to approximate and interpret GNN decisions.
+    - Efficiently **ground predicates** into representative subgraphs, supported by general grounding rules.
 
 - Training utilities:
-  - Class-balanced weights
-  - Checkpoint saving/loading
-  - Early stopping thresholds per dataset
+    - Class-balanced weights
+    - Checkpoint saving/loading
+    - Early stopping thresholds per dataset
 
 ---
 
@@ -52,9 +73,12 @@ cd LogicXGNN-ICRL2026
 
 conda create -n logicgnn python=3.10
 conda activate logicgnn
-pip install torch torch-geometric==3.6.1 scikit-learn matplotlib networkx==3.4.2
+pip install torch torch-geometric==2.6.1 scikit-learn matplotlib networkx==3.4.2
 ```
-Note: We have not tested with the most recent versions of each package. Please use the older versions than current ones if you encounter any issues. Additional you can contact us and we can help you to resolve the issues.
+
+Note: We have not tested with the most recent versions of each package. Please use the older versions than current ones
+if you encounter any issues. Additional you can contact us and we can help you to resolve the issues.
+
 ---
 
 ## 🛠 Usage
@@ -67,7 +91,8 @@ python main.py --dataset BBBP --arch GCN --seed 42
 
 ### Arguments
 
-- `--dataset`: one of `BBBP`, `Mutagenicity`, `IMDB-BINARY`, `NCI1`, `BAMultiShapes`, `reddit_threads`, `twitch_egos`, `github_stargazers`
+- `--dataset`: one of `BBBP`, `Mutagenicity`, `IMDB-BINARY`, `NCI1`, `BAMultiShapes`, `reddit_threads`, `twitch_egos`,
+  `github_stargazers`
 - `--arch`: one of `GCN`, `GIN`, `GAT`, `GraphSAGE`
 - `--seed`: random seed (default: 0)
 - `--load`: load a pretrained model

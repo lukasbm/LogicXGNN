@@ -61,6 +61,8 @@ runs/
 wandb/
 tensorboard/
 lightning_logs/
+plots/
+plot/
 
 # ======================================
 # Notebooks
