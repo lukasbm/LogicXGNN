@@ -9,11 +9,12 @@ from torch_geometric.nn import (
     GCNConv, GINConv, GATConv, SAGEConv, global_mean_pool
 )
 class GCN(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_classes=2, use_conv3=True):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_classes=2, use_conv3=True, dropout=0.0):
         super(GCN, self).__init__()
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, hidden_channels)
         self.use_conv3 = use_conv3  # 🔹 flag
+        self.dropout = dropout
 
         if self.use_conv3:
             self.conv3 = GCNConv(hidden_channels, out_channels)
@@ -26,8 +27,11 @@ class GCN(nn.Module):
 
         x = self.conv1(x, edge_index); activations['conv1'] = x.detach().clone()
         x = F.relu(x); activations['relu1'] = x.detach().clone()
+        x = F.dropout(x, p=self.dropout, training=self.training)
 
         x = self.conv2(x, edge_index); activations['conv2'] = x.detach().clone()
+        x = F.relu(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
         # x = F.relu(x); activations['relu2'] = x.detach().clone()
 
         if self.use_conv3:

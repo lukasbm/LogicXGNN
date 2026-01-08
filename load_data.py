@@ -1,10 +1,10 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.datasets import TUDataset, MoleculeNet
 from torch_geometric.data import DataLoader
+from torch_geometric.datasets import BAMultiShapesDataset
+from torch_geometric.datasets import TUDataset, MoleculeNet
 from torch_geometric.transforms import BaseTransform
 from torch_geometric.utils import degree
-from torch_geometric.datasets import BAMultiShapesDataset
 
 
 # ---------------------------
@@ -72,13 +72,14 @@ def load_data(name, seed=42):
     elif name == "SingleP4":
         from graph_learning.datasets.synthetic import create_non_cograph_single_p4_dataset, create_cograph_dataset, \
             merge_datasets
-        from graph_learning.utils import build_transform
+        from fix_node_features import StructuralFeatures
 
         min_nodes = 12
         max_nodes = 36
         num_graphs = 200
 
-        transform = build_transform(laplace_pe_k=0, graph_features=None, use_virtual_node=False)
+        # Use rich structural features to help identify P4 patterns
+        transform = StructuralFeatures(max_degree=10)
         positive_dataset = create_cograph_dataset(
             num_graphs=num_graphs,
             min_nodes=min_nodes,

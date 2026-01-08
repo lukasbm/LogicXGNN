@@ -23,6 +23,14 @@ SingleP4 is my dataset I added!
 At the end you will find the relevant pattern in the plot directory, and there's a checkpoint.
 The whole process should take around 20 minutes with a dataset size of 500 on rosewater.
 
+TODO: use it on one of my pretrained models!!!
+
+### Results
+
+The results so far are pretty trash, is there no way to improve it?
+
+No wonder they are trash ... the underlying model has 51% accuracy!
+
 ---
 
 ## 📌 Features

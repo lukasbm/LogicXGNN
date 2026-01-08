@@ -1,19 +1,21 @@
 import argparse
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
-from torch.autograd.gradcheck import _test_undefined_backward_mode
 import torch.nn as nn
 import torch.optim as optim
-from explain_gnn import *
-from load_data import load_data  # your function from before
-from gnn import GCN, GIN, GAT, GraphSAGE  # your GCN class
-from utils import train, test, load_model  # your train/test/save functions
-from build_logicGNN import *
-from grounding import *
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-import time
 from sklearn.utils.class_weight import compute_class_weight
-import numpy as np
-import matplotlib.pyplot as plt
+from torch.autograd.gradcheck import _test_undefined_backward_mode
+
+from build_logicGNN import *
+from explain_gnn import *
+from gnn import GCN, GIN, GAT, GraphSAGE  # your GCN class
+from grounding import *
+from load_data import load_data  # your function from before
+from utils import train, test, load_model  # your train/test/save functions
 
 # dataset-specific early stop thresholds
 stop_dict = {
@@ -75,12 +77,12 @@ def main():
 
     print(f"Correctly calculated class weights: {class_weights_map}")
     # ✅ Decide whether to use conv3 based on dataset
-    use_conv3 = args.dataset == "BAMultiShapes"
+    use_conv3 = args.dataset in ["BAMultiShapes", "SingleP4"]  # Use 3 layers for structural tasks
     use_node_features = args.dataset in ["BBBP", "Mutagenicity", "NCI1"]
 
-    def get_model(arch, in_channels, hidden_channels, out_channels, num_classes, use_conv3=True):
+    def get_model(arch, in_channels, hidden_channels, out_channels, num_classes, use_conv3=True, dropout=0.0):
         if arch == "GCN":
-            return GCN(in_channels, hidden_channels, out_channels, num_classes, use_conv3)
+            return GCN(in_channels, hidden_channels, out_channels, num_classes, use_conv3, dropout)
         elif arch == "GIN":
             return GIN(in_channels, hidden_channels, out_channels, num_classes, use_conv3)
         elif arch == "GAT":
@@ -90,13 +92,17 @@ def main():
         else:
             raise ValueError(f"Unknown architecture {arch}")
 
+    # Use dropout for SingleP4 to prevent overfitting
+    dropout = 0.3 if args.dataset == "SingleP4" else 0.0
+
     model = get_model(
         args.arch,
         in_channels=train_dataset[0].x.shape[1],
-        hidden_channels=32,
-        out_channels=32,
+        hidden_channels=64,  # Increased capacity for structural learning
+        out_channels=64,
         num_classes=2,
-        use_conv3=use_conv3
+        use_conv3=use_conv3,
+        dropout=dropout
     ).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=0.005)
@@ -158,10 +164,11 @@ def main():
         use_embed = 0
         k_hops = 2
     elif args.dataset == "SingleP4":
-        atom_type_dict = {}
-        one_hot = 0
-        use_embed = 0
-        k_hops = 2
+        # 10 (degree one-hot) + 1 (degree norm) + 1 (neighbor deg sum) + 1 (neighbor deg max) = 13 features
+        atom_type_dict = {i: f"deg_{i}" for i in range(10)}  # Map one-hot positions to degree labels
+        one_hot = 0  # Features already processed
+        use_embed = 1  # Enable embedding patterns to distinguish P4 nodes
+        k_hops = 3  # P4 has 3 edges, so k=3 captures the full pattern
 
     if args.arch == "GCN":
         model_path = f"./models/{args.dataset}_{args.seed}.pth"
@@ -196,24 +203,24 @@ def main():
         test_loader, model, device)
     save_dir_root = f"./plot/{args.dataset}/{args.seed}/{args.arch}"
     print(f"If the plot flag is set, explanation results will be saved to {save_dir_root}")
-#     torch.save({
-#     "pred_tensor": gnn_train_pred_tensor.cpu(),
-#     "y_tensor": train_y_tensor.cpu(),
-#     "x_dict": train_x_dict,
-#     "edge_dict": train_edge_dict,
-#     "activations_dict": train_activations_dict,
-#     "graph_embed": train_gnn_graph_embed,
-# }, os.path.join(save_dir, "train_results.pt"))
+    #     torch.save({
+    #     "pred_tensor": gnn_train_pred_tensor.cpu(),
+    #     "y_tensor": train_y_tensor.cpu(),
+    #     "x_dict": train_x_dict,
+    #     "edge_dict": train_edge_dict,
+    #     "activations_dict": train_activations_dict,
+    #     "graph_embed": train_gnn_graph_embed,
+    # }, os.path.join(save_dir, "train_results.pt"))
 
-# # Save testing results
-#     torch.save({
-#         "pred_tensor": gnn_test_pred_tensor.cpu(),
-#         "y_tensor": test_y_tensor.cpu(),
-#         "x_dict": test_x_dict,
-#         "edge_dict": test_edge_dict,
-#         "activations_dict": test_activations_dict,
-#         "graph_embed": test_gnn_graph_embed,
-#     }, os.path.join(save_dir, "test_results.pt"))
+    # # Save testing results
+    #     torch.save({
+    #         "pred_tensor": gnn_test_pred_tensor.cpu(),
+    #         "y_tensor": test_y_tensor.cpu(),
+    #         "x_dict": test_x_dict,
+    #         "edge_dict": test_edge_dict,
+    #         "activations_dict": test_activations_dict,
+    #         "graph_embed": test_gnn_graph_embed,
+    #     }, os.path.join(save_dir, "test_results.pt"))
     X = train_gnn_graph_embed
 
     # y = train_y_tensor 
