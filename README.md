@@ -25,6 +25,10 @@ The whole process should take around 20 minutes with a dataset size of 500 on ro
 
 TODO: use it on one of my pretrained models!!!
 
+###### Models to use
+
+"/scr/rosewater/lukas/graph-learning-experiments/optuna/dual_channel_gnn_single_p4_08247/trial_11/model_bundle.ptpkg"
+
 ### Results
 
 The results so far are pretty trash, is there no way to improve it?

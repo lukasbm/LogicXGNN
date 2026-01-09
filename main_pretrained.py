@@ -1,5 +1,11 @@
+print("hi")
+
 import argparse
+import os
+import sys
 import time
+from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,6 +15,7 @@ import torch.optim as optim
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.utils.class_weight import compute_class_weight
 from torch.autograd.gradcheck import _test_undefined_backward_mode
+from torch_geometric.nn import GINConv, MessagePassing
 
 from build_logicGNN import *
 from explain_gnn import *
@@ -52,6 +59,95 @@ BBBP_atom_type_dict = {
 }
 
 
+def try_to_load_model_from_checkpoint_path(
+    checkpoint_path: str, device: torch.device
+) -> torch.nn.Module:
+    from graph_learning.utils import load_checkpoint as load_model_checkpoint
+    from graph_learning.utils.packaging import load_model_from_bundle
+    
+    # try multiple loading methods
+    attempts = {
+        "torch package bundle": lambda: load_model_from_bundle(
+            checkpoint_path, map_location=str(device)
+        ),
+        "Bare Torch Load": lambda: torch.load(
+            checkpoint_path, map_location=device, weights_only=False
+        ),
+        "Cloudpickle Custom Loader": lambda: load_model_checkpoint(
+            checkpoint_path, device=str(device)
+        ),
+    }
+    
+    # Try to import ArchTestingModule if available - for .ckpt files
+    try:
+        from scripts.arch_study import ArchTestingModule
+        attempts = {
+            "ArchTestingModule": lambda: ArchTestingModule.load_from_checkpoint(
+                checkpoint_path=checkpoint_path, map_location=device
+            ).model,
+            **attempts
+        }
+    except (ImportError, AttributeError):
+        pass  # Skip this loading method if not available
+    
+    # Also try PyTorch Lightning checkpoint loading if available
+    try:
+        import pytorch_lightning as pl
+        # Try loading as a Lightning checkpoint and extracting the model
+        def load_from_lightning_ckpt():
+            ckpt = torch.load(checkpoint_path, map_location=device)
+            if 'state_dict' in ckpt:
+                # This is a Lightning checkpoint - need to reconstruct the model
+                # For now, skip this as we'd need model architecture info
+                raise ValueError("Lightning checkpoint detected but model reconstruction not implemented")
+            raise ValueError("Not a Lightning checkpoint")
+        
+        attempts = {"Lightning Checkpoint": load_from_lightning_ckpt, **attempts}
+    except (ImportError, ValueError):
+        pass
+
+    last_exc = None
+    for attempt_name, attempt in attempts.items():
+        try:
+            print(f"Trying to load model via: {attempt_name}")
+            result = attempt()
+            # Validate that we got a real model
+            if not isinstance(result, torch.nn.Module):
+                raise ValueError(f"Got {type(result)} instead of torch.nn.Module")
+            print(f"Successfully loaded model via: {attempt_name}")
+            break
+        except Exception as e:
+            print(f"  Error: {e}", file=sys.stderr)
+            last_exc = e
+    else:
+        raise last_exc
+
+    model: torch.nn.Module = result
+    return model
+
+
+def get_model_from_checkpoint(
+    checkpoint_path: str, device: torch.device
+) -> Optional[torch.nn.Module]:
+    """Load model from a specific checkpoint path"""
+    try:
+        return try_to_load_model_from_checkpoint_path(checkpoint_path, device)
+    except Exception as e:
+        print(f"Failed to load model from {checkpoint_path}: {e}")
+        return None
+
+
+def fix_model(model: torch.nn.Module) -> torch.nn.Module:
+    # normalize model architecture ... add needed fields
+    # basically a stupid monkey path
+    for module in model.modules():
+        if isinstance(module, MessagePassing):
+            if isinstance(module, GINConv):
+                module.in_channels = module.nn[0].in_features
+                module.out_channels = module.nn[-1].out_features
+    return model
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Train and evaluate GNNs on graph datasets"
@@ -61,6 +157,7 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
+        default="SingleP4",
         choices=[
             "BBBP",
             "Mutagenicity",
@@ -77,6 +174,12 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument(
         "--load", action="store_true", help="Load pretrained model instead of training"
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint file to load pretrained model",
     )
     parser.add_argument(
         "--max_depth", type=int, default=5, help="Maximum depth for decision tree"
@@ -119,64 +222,22 @@ def main():
         "BAMultiShapes",
         "SingleP4",
     ]  # Use 3 layers for structural tasks
-    use_node_features = args.dataset in ["BBBP", "Mutagenicity", "NCI1"]
 
-    def get_model(
-        arch,
-        in_channels,
-        hidden_channels,
-        out_channels,
-        num_classes,
-        use_conv3=True,
-        dropout=0.0,
-    ):
-        if arch == "GCN":
-            return GCN(
-                in_channels,
-                hidden_channels,
-                out_channels,
-                num_classes,
-                use_conv3,
-                dropout,
-            )
-        elif arch == "GIN":
-            return GIN(
-                in_channels, hidden_channels, out_channels, num_classes, use_conv3
-            )
-        elif arch == "GAT":
-            return GAT(
-                in_channels,
-                hidden_channels,
-                out_channels,
-                num_classes,
-                use_conv3=use_conv3,
-            )
-        elif arch == "GraphSAGE":
-            return GraphSAGE(
-                in_channels,
-                hidden_channels,
-                out_channels,
-                num_classes,
-                use_conv3=use_conv3,
-            )
-        else:
-            raise ValueError(f"Unknown architecture {arch}")
+    # Load model from checkpoint if specified
+    if args.checkpoint:
+        print(f"Loading pretrained model from checkpoint: {args.checkpoint}")
+        loaded = get_model_from_checkpoint(args.checkpoint, device)
+        if loaded is None:
+            raise ValueError(f"Failed to load model from checkpoint: {args.checkpoint}")
 
-    # Use dropout for SingleP4 to prevent overfitting
-    dropout = 0.3 if args.dataset == "SingleP4" else 0.0
+        # It's a full model
+        print("Loaded full model object")
+        model = loaded
+        model = fix_model(model)
+        model = model.to(device)
 
-    model = get_model(
-        args.arch,
-        in_channels=train_dataset[0].x.shape[1],
-        hidden_channels=64,  # Increased capacity for structural learning
-        out_channels=64,
-        num_classes=2,
-        use_conv3=use_conv3,
-        dropout=dropout,
-    ).to(device)
-
-    optimizer = optim.Adam(model.parameters(), lr=0.005)
-    criterion = nn.CrossEntropyLoss()
+        test_acc = test(model, test_loader, device)
+        print(f"Loaded pretrained model | Test Accuracy: {test_acc:.4f}")
 
     if args.dataset == "BBBP":
         atom_type_dict = BBBP_atom_type_dict
@@ -242,79 +303,75 @@ def main():
         use_embed = 1  # Enable embedding patterns to distinguish P4 nodes
         k_hops = 3  # P4 has 3 edges, so k=3 captures the full pattern
 
-    if args.arch == "GCN":
-        model_path = f"./models/{args.dataset}_{args.seed}.pth"
-    else:
-        model_path = f"./models/{args.dataset}_{args.seed}_{args.arch}.pth"
-
-    if args.load:
-        # 🔹 Load pretrained weights
-        model = load_model(model, model_path, device=device)
-        test_acc = test(model, test_loader, device)
-        print(f"Loaded model | Test Accuracy: {test_acc:.4f}")
-    else:
-        # 🔹 Train from scratch with early stopping
-        for epoch in range(1, 201):
-            loss = train(model, train_loader, optimizer, criterion, device)
-            train_acc = test(model, train_loader, device)
-            test_acc = test(model, test_loader, device)
-            print(
-                f"Epoch {epoch}, Loss {loss:.4f}, Train Acc {train_acc:.4f}, Test Acc {test_acc:.4f}"
-            )
-
-            # check dataset-specific stop threshold
-            if test_acc >= stop_dict[args.dataset]:
-                print(
-                    f"✅ Early stopping at epoch {epoch} for {args.dataset}: Test Acc {test_acc:.4f}"
-                )
-                break
-
-        torch.save(model.state_dict(), model_path)
-        print(f"✅ Saved model to {model_path}")
-
     start_time = time.time()
-    (
-        gnn_train_pred_tensor,
-        train_y_tensor,
-        train_x_dict,
-        train_edge_dict,
-        train_activations_dict,
-        train_gnn_graph_embed,
-    ) = get_all_activations_graph(train_loader, model, device)
-    (
-        gnn_test_pred_tensor,
-        test_y_tensor,
-        test_x_dict,
-        test_edge_dict,
-        test_activations_dict,
-        test_gnn_graph_embed,
-    ) = get_all_activations_graph(test_loader, model, device)
+    
+    # Try to extract activations - skip if model doesn't support it
+    try:
+        (
+            gnn_train_pred_tensor,
+            train_y_tensor,
+            train_x_dict,
+            train_edge_dict,
+            train_activations_dict,
+            train_gnn_graph_embed,
+        ) = get_all_activations_graph(train_loader, model, device)
+        (
+            gnn_test_pred_tensor,
+            test_y_tensor,
+            test_x_dict,
+            test_edge_dict,
+            test_activations_dict,
+            test_gnn_graph_embed,
+        ) = get_all_activations_graph(test_loader, model, device)
+        activations_available = True
+    except ValueError as e:
+        if "does not return activations" in str(e):
+            print(f"\n⚠️  Warning: {e}")
+            print("Skipping explanation phase. Model evaluation completed successfully.")
+            if args.checkpoint:
+                print(f"\nFinal Test Accuracy: {test_acc:.4f}")
+                return  # Exit early for pretrained models without activation support
+            activations_available = False
+        else:
+            raise
+    
+    if not activations_available:
+        print("Cannot proceed without activations. Exiting.")
+        return
+    
     save_dir_root = f"./plot/{args.dataset}/{args.seed}/{args.arch}"
     print(
         f"If the plot flag is set, explanation results will be saved to {save_dir_root}"
     )
-    #     torch.save({
-    #     "pred_tensor": gnn_train_pred_tensor.cpu(),
-    #     "y_tensor": train_y_tensor.cpu(),
-    #     "x_dict": train_x_dict,
-    #     "edge_dict": train_edge_dict,
-    #     "activations_dict": train_activations_dict,
-    #     "graph_embed": train_gnn_graph_embed,
-    # }, os.path.join(save_dir, "train_results.pt"))
 
-    # # Save testing results
-    #     torch.save({
-    #         "pred_tensor": gnn_test_pred_tensor.cpu(),
-    #         "y_tensor": test_y_tensor.cpu(),
-    #         "x_dict": test_x_dict,
-    #         "edge_dict": test_edge_dict,
-    #         "activations_dict": test_activations_dict,
-    #         "graph_embed": test_gnn_graph_embed,
-    #     }, os.path.join(save_dir, "test_results.pt"))
+    torch.save(
+        {
+            "pred_tensor": gnn_train_pred_tensor.cpu(),
+            "y_tensor": train_y_tensor.cpu(),
+            "x_dict": train_x_dict,
+            "edge_dict": train_edge_dict,
+            "activations_dict": train_activations_dict,
+            "graph_embed": train_gnn_graph_embed,
+        },
+        os.path.join(save_dir_root, "train_results.pt"),
+    )
+
+    # Save testing results
+    torch.save(
+        {
+            "pred_tensor": gnn_test_pred_tensor.cpu(),
+            "y_tensor": test_y_tensor.cpu(),
+            "x_dict": test_x_dict,
+            "edge_dict": test_edge_dict,
+            "activations_dict": test_activations_dict,
+            "graph_embed": test_gnn_graph_embed,
+        },
+        os.path.join(save_dir_root, "test_results.pt"),
+    )
+
     X = train_gnn_graph_embed
 
     # y = train_y_tensor
-
     y = gnn_train_pred_tensor  # explain gnn so use pred_tensor thats predicted results on train data by GNN
 
     # Train a Decision Tree Classifier
