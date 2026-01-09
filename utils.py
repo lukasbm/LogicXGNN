@@ -7,7 +7,10 @@ def train(model, loader, optimizer, criterion, device):
     for data in loader:
         data = data.to(device)
         optimizer.zero_grad()
-        out, _ = model(data.x, data.edge_index, data.batch)
+        out = model(data.x, data.edge_index, data.batch)
+        # Handle both single tensor output and tuple output
+        if isinstance(out, tuple):
+            out = out[0]
         loss = criterion(out, data.y)
         loss.backward()
         optimizer.step()
@@ -28,7 +31,10 @@ def test(model, loader, device):
     with torch.no_grad():
         for data in loader:
             data = data.to(device)
-            out, _ = model(data.x, data.edge_index, data.batch)
+            out = model(data.x, data.edge_index, data.batch)
+            # Handle both single tensor output and tuple output
+            if isinstance(out, tuple):
+                out = out[0]
             _, predicted = out.max(dim=1)
             correct += (predicted == data.y).sum().item()
             total += data.num_graphs

@@ -32,7 +32,18 @@ def get_all_activations_graph(t_loader, model, device, optimizer=None):
             optimizer.zero_grad()
 
         # Forward pass
-        out, act = model(data.x, data.edge_index, data.batch)
+        result = model(data.x, data.edge_index, data.batch)
+        
+        # Handle both tuple (out, act) and single tensor output
+        if isinstance(result, tuple) and len(result) == 2:
+            out, act = result
+        else:
+            # Model doesn't return activations - cannot extract explanations
+            raise ValueError(
+                "Model does not return activations. Cannot extract explanations from this model. "
+                "Use --load flag without --plot to skip explanation phase."
+            )
+        
         _, pred = out.max(dim=1)
 
         pred_li.append(pred)
