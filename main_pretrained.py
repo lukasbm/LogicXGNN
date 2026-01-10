@@ -60,11 +60,11 @@ BBBP_atom_type_dict = {
 
 
 def try_to_load_model_from_checkpoint_path(
-    checkpoint_path: str, device: torch.device
+        checkpoint_path: str, device: torch.device
 ) -> torch.nn.Module:
     from graph_learning.utils import load_checkpoint as load_model_checkpoint
     from graph_learning.utils.packaging import load_model_from_bundle
-    
+
     # try multiple loading methods
     attempts = {
         "torch package bundle": lambda: load_model_from_bundle(
@@ -77,7 +77,7 @@ def try_to_load_model_from_checkpoint_path(
             checkpoint_path, device=str(device)
         ),
     }
-    
+
     # Try to import ArchTestingModule if available - for .ckpt files
     try:
         from scripts.arch_study import ArchTestingModule
@@ -89,7 +89,7 @@ def try_to_load_model_from_checkpoint_path(
         }
     except (ImportError, AttributeError):
         pass  # Skip this loading method if not available
-    
+
     # Also try PyTorch Lightning checkpoint loading if available
     try:
         import pytorch_lightning as pl
@@ -101,7 +101,7 @@ def try_to_load_model_from_checkpoint_path(
                 # For now, skip this as we'd need model architecture info
                 raise ValueError("Lightning checkpoint detected but model reconstruction not implemented")
             raise ValueError("Not a Lightning checkpoint")
-        
+
         attempts = {"Lightning Checkpoint": load_from_lightning_ckpt, **attempts}
     except (ImportError, ValueError):
         pass
@@ -127,7 +127,7 @@ def try_to_load_model_from_checkpoint_path(
 
 
 def get_model_from_checkpoint(
-    checkpoint_path: str, device: torch.device
+        checkpoint_path: str, device: torch.device
 ) -> Optional[torch.nn.Module]:
     """Load model from a specific checkpoint path"""
     try:
@@ -304,7 +304,7 @@ def main():
         k_hops = 3  # P4 has 3 edges, so k=3 captures the full pattern
 
     start_time = time.time()
-    
+
     # Try to extract activations - skip if model doesn't support it
     try:
         (
@@ -334,11 +334,11 @@ def main():
             activations_available = False
         else:
             raise
-    
+
     if not activations_available:
         print("Cannot proceed without activations. Exiting.")
         return
-    
+
     save_dir_root = f"./plot/{args.dataset}/{args.seed}/{args.arch}"
     print(
         f"If the plot flag is set, explanation results will be saved to {save_dir_root}"
@@ -600,7 +600,7 @@ def main():
     ##########################
     ##########################
     correct_predictions_class_1 = (
-        (data_grounded_pred_array == y_true) & (y_true == 1)
+            (data_grounded_pred_array == y_true) & (y_true == 1)
     ).sum()
 
     total_actual_class_1 = (y_true == 1).sum()
@@ -608,7 +608,7 @@ def main():
     print(correct_predictions_class_1 / total_actual_class_1)
 
     correct_predictions_class_0 = (
-        (data_grounded_pred_array == y_true) & (y_true == 0)
+            (data_grounded_pred_array == y_true) & (y_true == 0)
     ).sum()
 
     total_actual_class_0 = (y_true == 0).sum()
