@@ -1,16 +1,14 @@
 from collections import defaultdict
-import torch
+
+import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from torch_geometric.utils import k_hop_subgraph, to_networkx
-from torch_geometric.data import Data
-import numpy as np
 import torch
+from sklearn.metrics import accuracy_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.tree import _tree
-import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-from sklearn.utils.class_weight import compute_sample_weight
+from torch_geometric.data import Data
+from torch_geometric.utils import k_hop_subgraph, to_networkx
 
 
 def process_graph_predicates(graph_idx, train_x_dict, train_edge_dict, train_activations_dict, val_idx, threshold,
