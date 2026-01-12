@@ -1,13 +1,14 @@
 import time
 import os
 import torch
-import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
-from explain_gnn import get_all_activations_graph, decision_tree_explainer, get_predicates_bin_one_pass, get_predicate_graph, get_discriminative_rules_with_samples
-from grounding import analyze_used_predicate_nodes, plot_alone_predicate_explanation, explain_predicate_with_rules, grounded_graph_predictions
+from explain_gnn import get_all_activations_graph, decision_tree_explainer, get_predicates_bin_one_pass, \
+    get_predicate_graph, get_discriminative_rules_with_samples
+from grounding import analyze_used_predicate_nodes, plot_alone_predicate_explanation, explain_predicate_with_rules, \
+    grounded_graph_predictions
 
 # Constants
 stop_dict = {
@@ -31,6 +32,7 @@ BBBP_atom_type_dict = {
     idx: original_atom_dict[atom_types[idx]] for idx in range(num_atom_types)
 }
 
+
 def get_dataset_config(dataset_name):
     if dataset_name == "BBBP":
         atom_type_dict = BBBP_atom_type_dict
@@ -44,7 +46,8 @@ def get_dataset_config(dataset_name):
         k_hops = 3
     elif dataset_name == "Mutagenicity":
         atom_type_dict = {
-            0: "C", 1: "O", 2: "Cl", 3: "H", 4: "N", 5: "F", 6: "Br", 7: "S", 8: "P", 9: "I", 10: "Na", 11: "K", 12: "Li", 13: "Ca",
+            0: "C", 1: "O", 2: "Cl", 3: "H", 4: "N", 5: "F", 6: "Br", 7: "S", 8: "P", 9: "I", 10: "Na", 11: "K",
+            12: "Li", 13: "Ca",
         }
         one_hot = 1
         use_embed = 1
@@ -83,16 +86,18 @@ def get_dataset_config(dataset_name):
         # Default or raise error? Original code didn't have else for these if-elifs inside main
         # assuming one of the choices must be picked as per argparse
         raise ValueError(f"Unknown dataset {dataset_name}")
-    
+
     return atom_type_dict, one_hot, use_embed, k_hops
 
-def run_explainer_pipeline(args, model, device, train_loader, test_loader, train_dataset, test_dataset, class_weights_map):
+
+def run_explainer_pipeline(args, model, device, train_loader, test_loader, train_dataset, test_dataset,
+                           class_weights_map):
     atom_type_dict, one_hot, use_embed, k_hops = get_dataset_config(args.dataset)
-    
+
     start_time = time.time()
-    
+
     try:
-        ( 
+        (
             gnn_train_pred_tensor,
             train_y_tensor,
             train_x_dict,
@@ -100,7 +105,7 @@ def run_explainer_pipeline(args, model, device, train_loader, test_loader, train
             train_activations_dict,
             train_gnn_graph_embed,
         ) = get_all_activations_graph(train_loader, model, device)
-        ( 
+        (
             gnn_test_pred_tensor,
             test_y_tensor,
             test_x_dict,
@@ -120,7 +125,7 @@ def run_explainer_pipeline(args, model, device, train_loader, test_loader, train
     print(
         f"If the plot flag is set, explanation results will be saved to {save_dir_root}"
     )
-    
+
     os.makedirs(save_dir_root, exist_ok=True)
 
     torch.save({
@@ -141,7 +146,7 @@ def run_explainer_pipeline(args, model, device, train_loader, test_loader, train
         "activations_dict": test_activations_dict,
         "graph_embed": test_gnn_graph_embed,
     }, os.path.join(save_dir_root, "test_results.pt"))
-    
+
     X = train_gnn_graph_embed
     y = gnn_train_pred_tensor  # explain gnn so use pred_tensor thats predicted results on train data by GNN
 
@@ -153,12 +158,12 @@ def run_explainer_pipeline(args, model, device, train_loader, test_loader, train
 
     # Predict on the test set
     y_pred = clf.predict(X)
-    
+
     if torch.is_tensor(y):
         y = y.cpu().numpy()
-    if torch.is_tensor(y_pred): # This line was suspicious in original but y_pred from sklearn is numpy
-        y_pred = y_pred.cpu().numpy() 
-    
+    if torch.is_tensor(y_pred):  # This line was suspicious in original but y_pred from sklearn is numpy
+        y_pred = y_pred.cpu().numpy()
+
     accuracy = accuracy_score(y, y_pred)
     print(f"Accuracy: {accuracy:.4f}")
 
@@ -177,13 +182,13 @@ def run_explainer_pipeline(args, model, device, train_loader, test_loader, train
         "Accuracy of decision tree on training set: ",
         accuracy_score(gnn_train_pred_tensor.cpu().numpy(), y_pred),
     )
-    ( 
-        predicates, 
-        predicate_to_idx, 
-        predicate_node, 
-        predicate_graph_class_0, 
-        predicate_graph_class_1, 
-        rules_matrix_0, 
+    (
+        predicates,
+        predicate_to_idx,
+        predicate_node,
+        predicate_graph_class_0,
+        predicate_graph_class_1,
+        rules_matrix_0,
         rules_matrix_1,
     ) = get_predicates_bin_one_pass(
         index_0_correct,
@@ -196,7 +201,7 @@ def run_explainer_pipeline(args, model, device, train_loader, test_loader, train
         use_embed=use_embed,
         k_hops=k_hops,
     )
-    
+
     idx_predicates_mapping = {
         idx: predicate for idx, predicate in enumerate(predicates)
     }

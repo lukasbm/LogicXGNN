@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.metrics import accuracy_score, classification_report
 import numpy as np
+
+
 def get_all_activations_graph(t_loader, model, device, optimizer=None):
     """
     Extract activations for every graph in a loader.
@@ -33,7 +35,7 @@ def get_all_activations_graph(t_loader, model, device, optimizer=None):
 
         # Forward pass
         result = model(data.x, data.edge_index, data.batch)
-        
+
         # Handle both tuple (out, act) and single tensor output
         if isinstance(result, tuple) and len(result) == 2:
             out, act = result
@@ -43,7 +45,7 @@ def get_all_activations_graph(t_loader, model, device, optimizer=None):
                 "Model does not return activations. Cannot extract explanations from this model. "
                 "Use --load flag without --plot to skip explanation phase."
             )
-        
+
         _, pred = out.max(dim=1)
 
         pred_li.append(pred)
@@ -61,7 +63,7 @@ def get_all_activations_graph(t_loader, model, device, optimizer=None):
             conv1_split.append(act['conv1'][node_ptr:node_ptr + num_nodes])
             relu1_split.append(act['relu1'][node_ptr:node_ptr + num_nodes])
             conv2_split.append(act['conv2'][node_ptr:node_ptr + num_nodes])
-            #relu2_split.append(act['relu2'][node_ptr:node_ptr + num_nodes])
+            # relu2_split.append(act['relu2'][node_ptr:node_ptr + num_nodes])
             if "conv3" in act:  # ✅ only if present
                 conv3_split.append(act['conv3'][node_ptr:node_ptr + num_nodes])
             node_ptr += num_nodes
@@ -74,7 +76,7 @@ def get_all_activations_graph(t_loader, model, device, optimizer=None):
             activations_dict['conv1'][graph_idx] = conv1_split[i]
             activations_dict['relu1'][graph_idx] = relu1_split[i]
             activations_dict['conv2'][graph_idx] = conv2_split[i]
-            #activations_dict['relu2'][graph_idx] = relu2_split[i]
+            # activations_dict['relu2'][graph_idx] = relu2_split[i]
             if "conv3" in act:
                 # Add conv3 slot if not already present
                 if 'conv3' not in activations_dict:
@@ -142,17 +144,14 @@ def decision_tree_explainer(train_embed, train_preds, test_embed, test_preds, ma
     test_acc = accuracy_score(y_test, y_test_pred)
     print(f"Decision Tree Fidelity (Test): {test_acc:.4f}")
 
-
-
     # Extract simple rule
     tree = clf.tree_
     val_idx = tree.feature[0]
     threshold = tree.threshold[0]
-    #print(f"Extracted Rule: if Feature_{val_idx} <= {threshold:.4f} → Class 0 else Class 1")
+    # print(f"Extracted Rule: if Feature_{val_idx} <= {threshold:.4f} → Class 0 else Class 1")
 
     # Indices of graphs by predicted class
     idx_class0 = torch.nonzero(train_preds == 0).squeeze()
     idx_class1 = torch.nonzero(train_preds == 1).squeeze()
 
-
-    return clf,idx_class0,idx_class1
+    return clf, idx_class0, idx_class1
